@@ -112,7 +112,7 @@
 
 ## 从源码运行（开发者）
 
-> 只想用软件的话，直接用上面的[下载链接](#️-下载即用普通用户看这里)就好，无需这一步。
+> 只想用软件的话，直接[下载免安装版](https://github.com/qqbn2027/image2video/releases/latest/download/TextToVideo-win64.zip) 解压运行就行，无需这一步。
 
 ```bash
 git clone git@github.com:qqbn2027/image2video.git
