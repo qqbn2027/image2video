@@ -4,6 +4,8 @@
 > 纯本地运行，不依赖任何在线剪辑平台，专为抖音 / 视频号 / 小红书 / B 站等自媒体场景设计。
 
 <p align="left">
+  <a href="https://github.com/qqbn2027/image2video/actions/workflows/build.yml"><img alt="build" src="https://github.com/qqbn2027/image2video/actions/workflows/build.yml/badge.svg"></a>
+  <a href="https://github.com/qqbn2027/image2video/releases"><img alt="release" src="https://img.shields.io/github/v/release/qqbn2027/image2video?display_name=tag"></a>
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%2B-3776AB">
   <img alt="ffmpeg" src="https://img.shields.io/badge/ffmpeg-bundled-2E7D32">
@@ -93,12 +95,40 @@ python main.py --selftest
 ### 打包成免安装 exe
 
 ```bat
+pip install -r requirements-dev.txt
 build_exe.bat
 ```
 
-脚本会依次：生成图标 → 清理旧构建 → PyInstaller 打包（`--onedir`，内嵌 ffmpeg/ffprobe，收集 `edge_tts` 全部资源）→ 重命名产物。
+脚本会依次：生成图标（Pillow）→ 清理旧构建 → PyInstaller 打包（`--onedir`，内嵌 ffmpeg/ffprobe，收集 `edge_tts` 全部资源）→ 重命名产物。
 
-> 产物在 `dist/` 下，**分发时要发整个文件夹**，不能只发 exe。
+> 产物在 `release\文字图片转视频工具\` 下，**分发时要发整个文件夹**，不能只发 exe。
+
+### 自动构建与发布（GitHub Actions）
+
+仓库内置 [`.github/workflows/build.yml`](.github/workflows/build.yml)，推送即自动打包：
+
+| 触发方式 | 结果 |
+| --- | --- |
+| 推送 tag `v1.0.0` | 打包 → 冒烟测试 → 压缩 → **自动发布 GitHub Release**（附带自动生成的更新说明） |
+| 推送到 `main` | 打包 → 冒烟测试 → 上传 Actions 构建产物（保留 14 天，不发布） |
+| 手动 `workflow_dispatch` | 同上，用于打测试包 |
+
+发一个版本只需要：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+产物命名 `TextToVideo-v1.0.0-win64.zip`，解压即为可直接运行的完整目录（含 ffmpeg，免安装）。
+
+工作流里有几个针对本项目特殊性的处理：
+
+- **ffmpeg 不入库**，CI 运行时从 [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) 下载 Windows GPL 构建并缓存到 `bin/`；校验步骤会确认该构建**包含 libass 与 libx264**，否则字幕烧录和 H.264 编码都会失败。
+- **打包直接调用 `build_exe.bat`**，CI 与本地产出一致；`PYTHON` 环境变量指向 setup-python 提供的解释器。
+- **冒烟测试是真的跑一遍**：对打包产物执行 `--selftest`，走通「语音 → 画面 → 字幕 → 混音」全链路，失败则该次构建不出包。
+- **压缩用 7z 而非 `Compress-Archive`**：中文目录名只有前者会正确写入 UTF-8 标志位，避免解压出来是乱码。
+
 
 ## 使用流程
 
@@ -154,10 +184,16 @@ image2video/
 │   ├── tts.py             # edge-tts 在线合成 + Windows SAPI 离线兜底
 │   ├── utils.py           # ffmpeg/ffprobe 定位、时长探测、可取消的进程执行
 │   └── video.py           # 合成管线：分段 → 转场拼接 → 字幕/混音收尾
+├── .github/workflows/
+│   └── build.yml          # CI：自动打包 + 冒烟测试 + 发布 Release
+├── docs/                  # README 用的界面截图
 ├── bin/                   # ffmpeg.exe / ffprobe.exe（自行放置，不入库）
 ├── build_exe.bat          # 一键打包脚本
 ├── make_icon.py           # 生成 app.ico
-├── rename_dist.py         # 打包产物重命名
+├── rename_dist.py         # 打包产物重命名 → release/
+├── requirements.txt       # 运行依赖
+├── requirements-dev.txt   # 打包依赖（pyinstaller / pillow）
+├── 使用说明.txt           # 随发布包分发的用户手册
 └── 示例素材/              # 示例文案与配图
 ```
 
@@ -186,4 +222,6 @@ image2video/
 
 ## License
 
-[Apache License 2.0](LICENSE)
+本项目代码以 [Apache License 2.0](LICENSE) 发布。
+
+发布包内嵌的 **ffmpeg / ffprobe 为 GPL 构建**（含 libass、libx264），遵循 FFmpeg 自身的许可证。如需商业分发，请自行替换为符合需求的 FFmpeg 构建。

@@ -1,0 +1,5 @@
+# 构建与打包依赖（CI 与本地 build_exe.bat 需要）
+-r requirements.txt
+
+pyinstaller>=6.6
+pillow>=10.0

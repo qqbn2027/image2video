@@ -1,0 +1,135 @@
+name: Build & Release
+
+# 触发方式
+#   1) push tag 形如 v1.0.0  -> 打包并发布 GitHub Release（自动生成更新说明）
+#   2) push 到 main          -> 打包并上传 Actions 构建产物（不发布）
+#   3) 手动 workflow_dispatch -> 同上，方便打测试包
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+# 发布 Release 需要写权限
+permissions:
+  contents: write
+
+# 同一分支/tag 重复推送时，取消上一次还在跑的构建
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 打包用的 ffmpeg/ffprobe（GPL 构建，含 libass，字幕烧录必需）
+  FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip
+  FFMPEG_CACHE_KEY: ffmpeg-win64-gpl-master-latest
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      # bin/ 不入库（两个 exe 各 80MB+），CI 里按需下载并缓存
+      - name: 恢复 ffmpeg 缓存
+        id: ffmpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: bin
+          key: ${{ env.FFMPEG_CACHE_KEY }}
+
+      - name: 下载 ffmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Host "下载 $env:FFMPEG_URL"
+          Invoke-WebRequest -Uri $env:FFMPEG_URL -OutFile ffmpeg.zip -UseBasicParsing
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg-tmp -Force
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          Get-ChildItem ffmpeg-tmp -Recurse -Include ffmpeg.exe, ffprobe.exe |
+            ForEach-Object { Copy-Item $_.FullName -Destination bin -Force }
+          Remove-Item ffmpeg.zip, ffmpeg-tmp -Recurse -Force
+
+      - name: 校验 ffmpeg
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          foreach ($n in @("ffmpeg", "ffprobe")) {
+            if (-not (Test-Path "bin\$n.exe")) { throw "缺少 bin\$n.exe" }
+          }
+          $ver = (& .\bin\ffmpeg.exe -hide_banner -version | Out-String)
+          Write-Host $ver.Split("`n")[0]
+          # 字幕烧录走 subtitles 滤镜，依赖 libass
+          if ($ver -notmatch "libass") { throw "该 ffmpeg 未编译 libass，字幕烧录会失败" }
+          if ($ver -notmatch "libx264") { throw "该 ffmpeg 未编译 libx264" }
+
+      # 直接用仓库里的打包脚本，保证 CI 与本地产出一致
+      - name: 打包 exe
+        shell: cmd
+        env:
+          PYTHON: python
+        run: build_exe.bat
+
+      # 冒烟测试：真实跑一遍「语音 + 画面 + 字幕 + 混音」全链路
+      # 若在 runner 上偶发失败（例如系统语音包缺失），可加 continue-on-error: true
+      - name: 冒烟测试（--selftest）
+        shell: pwsh
+        run: |
+          $exe = Join-Path (Resolve-Path "release").Path "文字图片转视频工具\文字图片转视频工具.exe"
+          if (-not (Test-Path $exe)) { throw "未找到打包产物：$exe" }
+          $proc = Start-Process -FilePath $exe -ArgumentList "--selftest" -Wait -PassThru
+          $log = Join-Path $env:TEMP "t2v_selftest.log"
+          if (Test-Path $log) { Get-Content $log -Encoding UTF8 }
+          if ($proc.ExitCode -ne 0) { throw "自检失败，退出码 $($proc.ExitCode)" }
+
+      - name: 压缩发布包
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ver = $env:GITHUB_REF_NAME
+          if ($ver -notmatch '^v\d') { $ver = "dev-" + $env:GITHUB_SHA.Substring(0, 7) }
+          $zip = "TextToVideo-$ver-win64.zip"
+
+          Push-Location release
+          # 用 7z 而不是 Compress-Archive：中文目录名会正确写入 UTF-8 标志位
+          & 7z a -tzip "..\$zip" "文字图片转视频工具" -mx=5 | Out-Null
+          Pop-Location
+
+          if (-not (Test-Path $zip)) { throw "压缩失败" }
+          $size = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+          Write-Host "生成 $zip（$size MB）"
+          "ZIP_NAME=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: TextToVideo-win64
+          path: ${{ env.ZIP_NAME }}
+          retention-days: 14
+
+      - name: 发布 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
