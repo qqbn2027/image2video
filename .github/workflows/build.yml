@@ -23,6 +23,9 @@ env:
   # 打包用的 ffmpeg/ffprobe（GPL 构建，含 libass，字幕烧录必需）
   FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip
   FFMPEG_CACHE_KEY: ffmpeg-win64-gpl-master-latest
+  # runner 的控制台编码不是中文，强制 Python 用 UTF-8 输出，避免中文日志/路径报错
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
 
 jobs:
   windows:
@@ -97,19 +100,31 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          $script:BuildLog = Join-Path $env:RUNNER_TEMP "build.log"
 
-          python make_icon.py
-          if ($LASTEXITCODE -ne 0) { throw "生成图标失败" }
+          function Invoke-Py([string]$label, [string[]]$pyArgs) {
+            Write-Host "== $label =="
+            & python @pyArgs *>&1 | Tee-Object -FilePath $script:BuildLog -Append
+            if ($LASTEXITCODE -ne 0) {
+              # 失败时把日志尾部贴成 error annotation，方便在 PR/Checks 里直接看到原因
+              $tail = (Get-Content $script:BuildLog -Tail 40 | Out-String)
+              $esc = $tail -replace "%", "%25" -replace "`r", "" -replace "`n", "%0A"
+              Write-Host "::error title=$label 失败::$esc"
+              exit 1
+            }
+          }
 
-          python -m PyInstaller --noconfirm --clean --windowed --onedir `
-            --name TextToVideo --icon app.ico `
-            --add-binary "bin\ffmpeg.exe;bin" `
-            --add-binary "bin\ffprobe.exe;bin" `
-            --collect-all edge_tts main.py
-          if ($LASTEXITCODE -ne 0) { throw "PyInstaller 打包失败（退出码 $LASTEXITCODE）" }
+          Invoke-Py "生成图标" @("make_icon.py")
 
-          python rename_dist.py
-          if ($LASTEXITCODE -ne 0) { throw "重命名产物失败" }
+          Invoke-Py "PyInstaller" @(
+            "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed", "--onedir",
+            "--name", "TextToVideo", "--icon", "app.ico",
+            "--add-binary", "bin\ffmpeg.exe;bin",
+            "--add-binary", "bin\ffprobe.exe;bin",
+            "--collect-all", "edge_tts", "main.py"
+          )
+
+          Invoke-Py "重命名产物" @("rename_dist.py")
 
           Get-ChildItem release -Recurse -Filter *.exe |
             Select-Object FullName, @{ n = "MB"; e = { [math]::Round($_.Length / 1MB, 1) } }

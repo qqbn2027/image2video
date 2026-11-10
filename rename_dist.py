@@ -4,6 +4,14 @@ import os
 import shutil
 import sys
 
+# 非中文控制台（cp437/cp1252）下 print 中文会抛 UnicodeEncodeError，
+# 直接把脚本打挂。统一切到 UTF-8 并在无法编码时降级，而不是崩掉。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001  老版本 Python 或已重定向的流
+        pass
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(BASE, "dist", "TextToVideo")
 DST_NAME = "文字图片转视频工具"
