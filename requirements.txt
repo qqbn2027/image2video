@@ -1,0 +1,5 @@
+# 运行依赖（GUI 使用标准库 tkinter，无需额外安装）
+edge-tts>=6.1.9
+
+# 打包依赖（仅在执行 build_exe.bat 时需要）
+# pyinstaller>=6.0
