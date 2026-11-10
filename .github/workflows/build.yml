@@ -82,12 +82,37 @@ jobs:
           if ($ver -notmatch "libass") { throw "该 ffmpeg 未编译 libass，字幕烧录会失败" }
           if ($ver -notmatch "libx264") { throw "该 ffmpeg 未编译 libx264" }
 
-      # 直接用仓库里的打包脚本，保证 CI 与本地产出一致
+      - name: 环境自检
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -c "import sys; print('python', sys.version)"
+          # PyInstaller 需要把 tcl/tk 一起打进包里，缺 tkinter 会直接打成废包
+          python -c "import tkinter; print('tkinter', tkinter.TkVersion)"
+          python -c "import PyInstaller, PIL, edge_tts; print('pyinstaller', PyInstaller.__version__)"
+
+      # 与本地 build_exe.bat 使用完全相同的打包参数。这里显式执行而不是调用 .bat，
+      # 一是避免批处理在 CI 上的换行符/错误码陷阱，二是失败原因能直接落到日志里。
       - name: 打包 exe
-        shell: cmd
-        env:
-          PYTHON: python
-        run: build_exe.bat
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          python make_icon.py
+          if ($LASTEXITCODE -ne 0) { throw "生成图标失败" }
+
+          python -m PyInstaller --noconfirm --clean --windowed --onedir `
+            --name TextToVideo --icon app.ico `
+            --add-binary "bin\ffmpeg.exe;bin" `
+            --add-binary "bin\ffprobe.exe;bin" `
+            --collect-all edge_tts main.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller 打包失败（退出码 $LASTEXITCODE）" }
+
+          python rename_dist.py
+          if ($LASTEXITCODE -ne 0) { throw "重命名产物失败" }
+
+          Get-ChildItem release -Recurse -Filter *.exe |
+            Select-Object FullName, @{ n = "MB"; e = { [math]::Round($_.Length / 1MB, 1) } }
 
       # 冒烟测试：真实跑一遍「语音 + 画面 + 字幕 + 混音」全链路
       # 若在 runner 上偶发失败（例如系统语音包缺失），可加 continue-on-error: true

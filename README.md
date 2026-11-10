@@ -125,7 +125,8 @@ git push origin v1.0.0
 工作流里有几个针对本项目特殊性的处理：
 
 - **ffmpeg 不入库**，CI 运行时从 [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) 下载 Windows GPL 构建并缓存到 `bin/`；校验步骤会确认该构建**包含 libass 与 libx264**，否则字幕烧录和 H.264 编码都会失败。
-- **打包直接调用 `build_exe.bat`**，CI 与本地产出一致；`PYTHON` 环境变量指向 setup-python 提供的解释器。
+- **打包参数与 `build_exe.bat` 完全一致**，但 CI 里改用显式命令执行（不经过批处理），避免 `.bat` 在 LF 换行下解析异常，也让失败原因直接落到日志；`.gitattributes` 同时强制 `.bat` 使用 CRLF。
+- **环境自检前置**：打包前先确认 `tkinter` 可用——PyInstaller 若拿不到 tcl/tk，打出来的是无法启动的废包。
 - **冒烟测试是真的跑一遍**：对打包产物执行 `--selftest`，走通「语音 → 画面 → 字幕 → 混音」全链路，失败则该次构建不出包。
 - **压缩用 7z 而非 `Compress-Archive`**：中文目录名只有前者会正确写入 UTF-8 标志位，避免解压出来是乱码。
 
