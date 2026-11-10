@@ -7,7 +7,7 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%2B-3776AB">
   <img alt="ffmpeg" src="https://img.shields.io/badge/ffmpeg-bundled-2E7D32">
-  <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
+  <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-blue">
 </p>
 
 ---
@@ -182,4 +182,4 @@ image2video/
 
 ## License
 
-MIT
+[Apache License 2.0](LICENSE)
