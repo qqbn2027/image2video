@@ -18,6 +18,44 @@
 
 ---
 
+## ⬇️ 下载即用（普通用户看这里）
+
+不需要装 Python、不用敲命令。直接下载打包好的免安装版：
+
+### **[👉 点此下载 TextToVideo-win64.zip](https://github.com/qqbn2027/image2video/releases/latest/download/TextToVideo-win64.zip)**
+
+> 上面这个链接**永远指向最新版本**，以后有新版本直接重新下载即可。
+> 也可以打开 [Releases 页面](https://github.com/qqbn2027/image2video/releases) 手动挑选版本。
+
+**三步就能用：**
+
+1. **下载** 上面的 `TextToVideo-win64.zip`（约 130 MB）
+2. **解压** 到任意目录（⚠️ 不要在压缩包里直接双击运行）
+3. **双击** `文字图片转视频工具.exe` 启动
+
+![下载三步](docs/download-steps.svg)
+
+**几个一定要注意的地方：**
+
+| 注意事项 | 说明 |
+| --- | --- |
+| 🚫 不要只拷 exe | 解压后是一个完整文件夹，`_internal` 和 `bin` 目录**必须一起保留**，单独把 exe 拖出来会无法启动 |
+| 🛡️ 被 SmartScreen 拦下 | 首次运行可能提示「Windows 已保护你的电脑」，点「**更多信息 → 仍要运行**」即可（软件未做代码签名） |
+| 💻 系统要求 | Windows 10 / 11（64 位）。ffmpeg 已内置，不需要另外安装 |
+| 🌐 联网 | 默认使用在线语音合成，需要联网；没有网络时可勾选「离线优先」用系统自带语音 |
+
+解压后的目录结构长这样，`使用说明.txt` 里有完整的中文使用教程：
+
+```
+文字图片转视频工具/
+├── 文字图片转视频工具.exe   ← 双击这个
+├── 使用说明.txt             ← 先看这个
+├── _internal/               ← 运行库，不能删
+└── bin/                     ← ffmpeg，不能删
+```
+
+---
+
 ## 这是什么
 
 一个 Tkinter 桌面工具：左边贴文案、右边选图片，点一下「开始生成视频」，就得到一条可以直接发布的 MP4。
@@ -63,11 +101,18 @@
 
 ## 运行环境
 
-- **Windows 10 / 11**（依赖 Windows 系统语音做离线兜底，并对高 DPI 屏幕做了适配）
+**用下载的免安装版**：只需要 Windows 10 / 11（64 位），ffmpeg 与 Python 运行时都已打包在内。
+
+**从源码运行**还需要：
+
 - **Python 3.10+**（打包脚本默认找 3.12，且必须带 `tcl/tk`）
 - **ffmpeg / ffprobe**：放在项目的 `bin/` 目录下即可，程序会按 `bin/` → PyInstaller 解压目录 → 系统 `PATH` 的顺序查找
 
-## 快速开始
+> 无论哪种方式，界面都依赖 Windows 系统语音做离线兜底，并对高 DPI 屏幕做了适配。
+
+## 从源码运行（开发者）
+
+> 只想用软件的话，直接用上面的[下载链接](#️-下载即用普通用户看这里)就好，无需这一步。
 
 ```bash
 git clone git@github.com:qqbn2027/image2video.git
@@ -116,11 +161,13 @@ build_exe.bat
 发一个版本只需要：
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.0.2
+git push origin v0.0.2
 ```
 
-产物命名 `TextToVideo-v1.0.0-win64.zip`，解压即为可直接运行的完整目录（含 ffmpeg，免安装）。
+产物固定命名 `TextToVideo-win64.zip`（不带版本号），解压即为可直接运行的完整目录（含 ffmpeg，免安装）。
+之所以不把版本号写进文件名，是为了让 `releases/latest/download/TextToVideo-win64.zip` 这个链接
+**永久有效**，README 里的下载入口不用每次发版都改。
 
 工作流里有几个针对本项目特殊性的处理：
 
@@ -187,7 +234,7 @@ image2video/
 │   └── video.py           # 合成管线：分段 → 转场拼接 → 字幕/混音收尾
 ├── .github/workflows/
 │   └── build.yml          # CI：自动打包 + 冒烟测试 + 发布 Release
-├── docs/                  # README 用的界面截图
+├── docs/                  # 界面截图与下载示意图
 ├── bin/                   # ffmpeg.exe / ffprobe.exe（自行放置，不入库）
 ├── build_exe.bat          # 一键打包脚本
 ├── make_icon.py           # 生成 app.ico

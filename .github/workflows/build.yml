@@ -145,9 +145,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $ver = $env:GITHUB_REF_NAME
-          if ($ver -notmatch '^v\d') { $ver = "dev-" + $env:GITHUB_SHA.Substring(0, 7) }
-          $zip = "TextToVideo-$ver-win64.zip"
+          # 固定文件名（不带版本号）：这样 README 里可以用 releases/latest/download 的
+          # 永久链接，每次发版都自动指向最新版，小白用户点一次就行。
+          $zip = "TextToVideo-win64.zip"
+          Write-Host "版本: $env:GITHUB_REF_NAME"
 
           Push-Location release
           # 用 7z 而不是 Compress-Archive：中文目录名会正确写入 UTF-8 标志位
